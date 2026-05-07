@@ -4,7 +4,13 @@ body {
     background: #1e1e1e;
     color: #ccc;
     font-family: "Microsoft YaHei", sans-serif;
+    font-size: 12px;
     overflow: hidden;
+}
+
+h1, h2, h3, h4, h5, h6,
+button, input, textarea, select, label, p, span {
+    font-size: 12px;
 }
 
 #editor-container {
@@ -14,12 +20,12 @@ body {
 }
 
 #toolbar {
-    height: 60px;
+    height: 36px;
     background: #333;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 12px;
     border-bottom: 1px solid #444;
 }
 
@@ -27,25 +33,30 @@ body {
 
 .tab {
     background: #444;
-    color: #aaa;
+    color: #fff;
     border: 1px solid #666;
-    padding: 8px 20px;
+    padding: 6px 10px;
     cursor: pointer;
     border-radius: 4px;
     transition: 0.3s;
 }
 
 .tab.active {
-    background: #094771;
-    color: white;
-    border-color: #007acc;
+    background: #444;
+    color: #fff;
+    border-color: #666;
+}
+
+.tab:hover,
+.tab.active:hover {
+    background: #555;
 }
 
 button {
     background: #444;
     color: white;
     border: 1px solid #666;
-    padding: 8px 15px;
+    padding: 6px 12px;
     cursor: pointer;
     border-radius: 4px;
 }
@@ -74,6 +85,10 @@ button:hover { background: #555; }
     -webkit-overflow-scrolling: touch;
 }
 
+.subpage-toolbar {
+    padding: 10px 12px 0;
+}
+
 #asset-manager-panel {
     width: 100%;
     box-sizing: border-box;
@@ -86,7 +101,7 @@ button:hover { background: #555; }
 
 /* 剧情编辑器布局 */
 #scene-list-panel {
-    width: 300px;
+    width: 360px;
     background: #252526;
     border-right: 1px solid #444;
     display: flex;
@@ -101,11 +116,53 @@ button:hover { background: #555; }
     display: none;
 }
 
+#scene-list-panel.collapsed .scene-left-controls {
+    display: none;
+}
+
 #scene-list-panel.collapsed .panel-header h3 {
     display: none;
 }
 
+#scene-list-panel.collapsed #btn-add-scene,
+#scene-list-panel.collapsed #btn-toggle-scene-panel {
+    display: none;
+}
+
+#scene-list-panel.collapsed #btn-open-scene-panel {
+    display: inline-block !important;
+}
+
 #scene-list-panel .panel-header {
+    gap: 8px;
+}
+
+.scene-left-controls {
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid #3a3a3a;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scene-left-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.scene-left-row--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.scene-left-row button,
+.scene-left-search button {
+    width: 100%;
+}
+
+.scene-left-search {
+    display: grid;
+    grid-template-columns: 1fr 70px;
     gap: 8px;
 }
 
@@ -216,6 +273,12 @@ select.step-dialogue-select {
     opacity: 0.95;
 }
 
+.mini-btn.is-on {
+    background: #0f6f96;
+    border-color: #3ea6d2;
+    color: #fff;
+}
+
 .drag-handle {
     cursor: grab;
     user-select: none;
@@ -275,7 +338,7 @@ input, textarea, select {
     color: white;
     padding: 8px;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 .input-group { display: flex; gap: 10px; }
@@ -568,7 +631,6 @@ input, textarea, select {
     max-width: 720px;
     margin-bottom: 20px;
     line-height: 1.5;
-    color: #aaa;
 }
 
 .modal-mask {
@@ -767,6 +829,24 @@ input, textarea, select {
     margin: 0 0 12px 0;
 }
 
+.cast-entry-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+    max-width: 720px;
+}
+
+.cast-entry-tools input {
+    min-width: 220px;
+    flex: 1;
+}
+
+.cast-entry-tools select {
+    min-width: 280px;
+    flex: 1;
+}
+
 .cast-empty {
     color: #888;
 }
@@ -878,6 +958,70 @@ input, textarea, select {
 
 .inline-picker-row select {
     flex: 1;
+}
+
+.view-step-fx-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 220;
+    box-sizing: border-box;
+    flex-direction: column;
+    background: #17191c;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.step-fx-page-wrap {
+    display: block;
+    box-sizing: border-box;
+    min-height: 100%;
+    padding-bottom: 40px;
+}
+
+.step-fx-page-toolbar {
+    padding: 14px 20px;
+    background: #252526;
+    border-bottom: 1px solid #444;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+}
+
+.step-fx-page-title-block {
+    flex: 1;
+    min-width: 220px;
+}
+
+.step-fx-page-heading {
+    margin: 0;
+    font-size: 18px;
+    color: #e0e0e0;
+}
+
+.step-fx-page-sub {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #888;
+}
+
+#step-fx-page-content {
+    max-width: 1200px;
+    margin: 14px auto 0;
+    padding: 0 20px 20px;
+    box-sizing: border-box;
+}
+
+.step-fx-page-root {
+    padding-top: 4px;
+}
+
+.step-fx-page-root .step-fx-dd-menu {
+    max-height: min(420px, 60vh);
 }
 
 /* 步骤编辑：固定铺满视口（工具栏以下），整页一条滚动条，非内层小框滚动 */

@@ -9,6 +9,9 @@ const Editor = {
     labelSearchText: '',
     /** 为 true 时步骤列表渲染在独立整页 #steps-list-page，否则在场景表单内 #steps-list */
     stepsPageVisible: false,
+    castSearchText: '',
+    activeCastId: '',
+    sceneSearchText: '',
 
     init() {
         AssetManager.init();
@@ -61,6 +64,7 @@ const Editor = {
         if (!project.unifiedAttributes) project.unifiedAttributes = [];
         if (!project.relationAttributes) project.relationAttributes = {};
         project.scenes.forEach(scene => {
+            if (scene.appearedValue == null) scene.appearedValue = 0;
             scene.background = scene.background || {};
             const bg = scene.background;
             if (bg.fitPanX == null && bg.offsetX != null) bg.fitPanX = bg.offsetX;
@@ -133,7 +137,11 @@ const Editor = {
                 ...s
             }));
             (scene.steps || []).forEach(st => {
+                if (st.appearedValue == null) st.appearedValue = 0;
+            });
+            (scene.steps || []).forEach(st => {
                 if (!st || st.type !== 'cg') return;
+                if (st.cgLoop == null) st.cgLoop = true;
                 if (st.cgStopAtStepId == null) st.cgStopAtStepId = '';
                 if (st.cgMusicStopAtStepId == null) st.cgMusicStopAtStepId = '';
                 if (st.cgMusicAlias == null) st.cgMusicAlias = '';
@@ -155,6 +163,10 @@ const Editor = {
             const file = await this.pickProjectFileWithMemory();
             if (file) await this.loadProjectFromFile(file);
         };
+        const btnOpenLast = document.getElementById('btn-open-last-project');
+        if (btnOpenLast) {
+            btnOpenLast.onclick = () => this.openLastProjectFromMemory();
+        }
         const btnDebug = document.getElementById('btn-debug-run');
         if (btnDebug) {
             btnDebug.onclick = () => {
@@ -185,13 +197,38 @@ const Editor = {
         };
 
         const btnToggleScenePanel = document.getElementById('btn-toggle-scene-panel');
+        const btnOpenScenePanel = document.getElementById('btn-open-scene-panel');
+        const toggleScenePanel = () => {
+            const panel = document.getElementById('scene-list-panel');
+            if (!panel) return;
+            const collapsed = !panel.classList.contains('collapsed');
+            panel.classList.toggle('collapsed', collapsed);
+            const text = collapsed ? '展开' : '收起';
+            if (btnToggleScenePanel) btnToggleScenePanel.textContent = text;
+            if (btnOpenScenePanel) btnOpenScenePanel.style.display = collapsed ? 'inline-block' : 'none';
+        };
         if (btnToggleScenePanel) {
-            btnToggleScenePanel.onclick = () => {
-                const panel = document.getElementById('scene-list-panel');
-                if (!panel) return;
-                const collapsed = !panel.classList.contains('collapsed');
-                panel.classList.toggle('collapsed', collapsed);
-                btnToggleScenePanel.textContent = collapsed ? '展开' : '收起';
+            btnToggleScenePanel.onclick = toggleScenePanel;
+        }
+        if (btnOpenScenePanel) {
+            btnOpenScenePanel.onclick = toggleScenePanel;
+        }
+        const sceneSearchInput = document.getElementById('scene-search-input');
+        const btnSceneSearch = document.getElementById('btn-scene-search');
+        if (sceneSearchInput) {
+            sceneSearchInput.oninput = () => {
+                this.sceneSearchText = sceneSearchInput.value || '';
+            };
+            sceneSearchInput.onkeydown = ev => {
+                if (ev.key !== 'Enter') return;
+                this.sceneSearchText = sceneSearchInput.value || '';
+                this.refreshSceneList();
+            };
+        }
+        if (btnSceneSearch) {
+            btnSceneSearch.onclick = () => {
+                this.sceneSearchText = sceneSearchInput ? sceneSearchInput.value || '' : '';
+                this.refreshSceneList();
             };
         }
 
@@ -210,6 +247,7 @@ const Editor = {
                 effects: { cgEntrance: '', overlays: [], combo: '', dramatic: '' },
                 text: '...',
                 options: [],
+                appearedValue: 0,
                 steps: [
                     {
                         id: `step_${Date.now()}_dlg`,
@@ -219,6 +257,7 @@ const Editor = {
                         charMode: 'big',
                         mirror: false,
                         text: '',
+                        appearedValue: 0,
                         effects: []
                     }
                 ]
@@ -274,6 +313,24 @@ const Editor = {
         if (btnUnified) {
             btnUnified.onclick = () => this.openUnifiedAttrsModal();
         }
+        const castSearchInput = document.getElementById('cast-search-input');
+        if (castSearchInput) {
+            castSearchInput.oninput = () => {
+                this.castSearchText = castSearchInput.value || '';
+                this.refreshCastList();
+            };
+        }
+        const castPicker = document.getElementById('cast-picker');
+        if (castPicker) {
+            castPicker.onchange = () => {
+                this.activeCastId = castPicker.value || '';
+                this.refreshCastList();
+            };
+        }
+        const btnBackFromCast = document.getElementById('btn-back-from-cast');
+        if (btnBackFromCast) btnBackFromCast.onclick = () => this.switchTab('story');
+        const btnBackFromAssets = document.getElementById('btn-back-from-assets');
+        if (btnBackFromAssets) btnBackFromAssets.onclick = () => this.switchTab('story');
 
         const btnOpenStepsPage = document.getElementById('btn-open-steps-page');
         const btnCloseStepsPage = document.getElementById('btn-close-steps-page');
@@ -288,6 +345,10 @@ const Editor = {
         }
         if (btnCloseStepsPage) {
             btnCloseStepsPage.onclick = () => this.closeStepsEditorPage();
+        }
+        const btnCloseStepFxPage = document.getElementById('btn-close-step-fx-page');
+        if (btnCloseStepFxPage) {
+            btnCloseStepFxPage.onclick = () => this.closeStepFxPage();
         }
 
         this._wireLabelQuickPickHandlers();
@@ -419,6 +480,26 @@ const Editor = {
         const body = document.getElementById('modal-body');
         const t = document.getElementById('modal-title');
         const close = document.getElementById('modal-close');
+        const isStepFxPage = String(title || '').includes('特效音效');
+        if (isStepFxPage) {
+            const fxView = document.getElementById('view-step-fx');
+            const fxBody = document.getElementById('step-fx-page-content');
+            const fxSub = document.getElementById('step-fx-page-subtitle');
+            if (fxView && fxBody && fxSub) {
+                const scene = this.getScene(this.currentSceneId);
+                const tb = document.getElementById('toolbar');
+                if (tb) tb.style.display = 'none';
+                ['view-story', 'view-cast', 'view-assets', 'view-steps'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+                fxView.style.display = 'block';
+                fxBody.innerHTML = '';
+                fxSub.textContent = `场景：${scene ? scene.name || scene.id : ''} · ${title}`;
+                renderFn(fxBody);
+                return;
+            }
+        }
         if (!mask || !body || !t || !close) return;
         t.textContent = title;
         body.innerHTML = '';
@@ -433,6 +514,21 @@ const Editor = {
         mask.onclick = (ev) => {
             if (ev.target === mask) onClose();
         };
+    },
+
+    closeStepFxPage() {
+        const fxView = document.getElementById('view-step-fx');
+        if (fxView) fxView.style.display = 'none';
+        const tb = document.getElementById('toolbar');
+        if (tb) tb.style.display = 'flex';
+        if (this.stepsPageVisible) {
+            const vs = document.getElementById('view-steps');
+            if (vs) vs.style.display = 'block';
+            return;
+        }
+        const tab = document.querySelector('.tab.active');
+        const active = tab ? tab.id.replace('tab-', '') : 'story';
+        this.switchTab(active);
     },
 
     openStepFxModal(step, stepNumber = 0) {
@@ -624,7 +720,28 @@ const Editor = {
         if (!Array.isArray(effectsArray)) effectsArray = [];
         const roster = this.projectData.characterRoster || [];
         const defs = this.projectData.unifiedAttributes || [];
+        const relationDefs = this.projectData.relationAttributes || {};
+        const scenes = this.projectData.scenes || [];
+        const stepOptions = [];
+        scenes.forEach(sc => {
+            (sc.steps || []).forEach((st, idx) => {
+                if (!st || !st.id) return;
+                stepOptions.push({ id: st.id, label: `${sc.name || sc.id} · #${idx + 1} ${this.getStepTypeLabel(st.type || 'dialogue')}` });
+            });
+        });
         const unifiedKeys = ['存在', ...defs.map(d => d && d.key).filter(Boolean)];
+        const relationSourceIds = roster
+            .map(c => c && c.id)
+            .filter(id => id && Object.keys((relationDefs && relationDefs[id]) || {}).length > 0);
+        const getAllowedRelationTargets = fromId =>
+            Object.keys((relationDefs && relationDefs[fromId]) || {}).filter(tid => tid && tid !== fromId);
+        const ensureRelationPair = effect => {
+            const from = effect.from || relationSourceIds[0] || roster[0]?.id || '';
+            const allowed = getAllowedRelationTargets(from);
+            if (!allowed.length) return { from, to: '' };
+            const to = allowed.includes(effect.to) ? effect.to : allowed[0];
+            return { from, to };
+        };
 
         const clamp0100 = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
@@ -650,12 +767,17 @@ const Editor = {
                     row.style.alignItems = 'center';
 
                     const kind = document.createElement('select');
-                    kind.innerHTML = `<option value="relation">关系好感</option><option value="unified">统一属性</option>`;
-                    kind.value = e.kind === 'unified' ? 'unified' : 'relation';
+                    kind.innerHTML = `<option value="relation">关系好感</option><option value="unified">统一属性</option><option value="appearance">出现值</option>`;
+                    kind.value =
+                        e.kind === 'unified' ? 'unified' : e.kind === 'appearance' ? 'appearance' : (relationSourceIds.length ? 'relation' : 'unified');
                     kind.onchange = () => {
                         const v = kind.value;
                         if (v === 'relation') {
-                            effectsArray[i] = { kind: 'relation', from: roster[0]?.id || '', to: roster[1]?.id || '', delta: 0 };
+                            const from = relationSourceIds[0] || roster[0]?.id || '';
+                            const to = getAllowedRelationTargets(from)[0] || '';
+                            effectsArray[i] = { kind: 'relation', from, to, delta: 0 };
+                        } else if (v === 'appearance') {
+                            effectsArray[i] = { kind: 'appearance', targetType: 'scene', targetId: scenes[0] && scenes[0].id ? scenes[0].id : '', val: 1 };
                         } else {
                             effectsArray[i] = { kind: 'unified', charId: roster[0]?.id || '', key: unifiedKeys[0] || '存在', op: 'set', val: true };
                         }
@@ -669,17 +791,43 @@ const Editor = {
                     cfg.style.alignItems = 'center';
 
                     if (kind.value === 'relation') {
+                        const pair = ensureRelationPair(e);
+                        e.from = pair.from;
+                        e.to = pair.to;
                         const from = document.createElement('select');
-                        from.innerHTML = roster.map(c => `<option value="${c.id}">${c.name || c.id}</option>`).join('');
-                        from.value = e.from || roster[0]?.id || '';
-                        from.onchange = () => (e.from = from.value);
+                        from.innerHTML = relationSourceIds
+                            .map(id => {
+                                const c = roster.find(x => x.id === id);
+                                return `<option value="${id}">${(c && (c.name || c.id)) || id}</option>`;
+                            })
+                            .join('');
+                        from.value = e.from || relationSourceIds[0] || '';
+                        from.onchange = () => {
+                            e.from = from.value;
+                            const allowed = getAllowedRelationTargets(e.from);
+                            to.innerHTML = allowed
+                                .map(tid => {
+                                    const c = roster.find(x => x.id === tid);
+                                    const nm = c ? c.name || c.id : tid;
+                                    return `<option value="${tid}">${nm}</option>`;
+                                })
+                                .join('');
+                            e.to = allowed[0] || '';
+                            to.value = e.to;
+                        };
 
                         const to = document.createElement('select');
-                        to.innerHTML = roster
-                            .map(c => `<option value="${c.id}">${c.name || c.id}</option>`)
+                        const toAllowed = getAllowedRelationTargets(e.from);
+                        to.innerHTML = toAllowed
+                            .map(tid => {
+                                const c = roster.find(x => x.id === tid);
+                                const nm = c ? c.name || c.id : tid;
+                                return `<option value="${tid}">${nm}</option>`;
+                            })
                             .join('');
-                        to.value = e.to || roster[0]?.id || '';
+                        to.value = e.to || toAllowed[0] || '';
                         to.onchange = () => (e.to = to.value);
+                        to.disabled = toAllowed.length === 0;
 
                         const delta = document.createElement('input');
                         delta.type = 'number';
@@ -687,13 +835,19 @@ const Editor = {
                         delta.style.width = '90px';
                         delta.oninput = () => (e.delta = Number(delta.value) || 0);
 
-                        cfg.appendChild(document.createTextNode('从'));
+                        cfg.appendChild(document.createTextNode('人物'));
                         cfg.appendChild(from);
-                        cfg.appendChild(document.createTextNode('对'));
+                        cfg.appendChild(document.createTextNode('好感对象'));
                         cfg.appendChild(to);
-                        cfg.appendChild(document.createTextNode('好感'));
+                        cfg.appendChild(document.createTextNode('变化'));
                         cfg.appendChild(delta);
-                    } else {
+                        if (!relationSourceIds.length) {
+                            const tip = document.createElement('span');
+                            tip.style.color = '#ffb86b';
+                            tip.textContent = '（请先在人物预设里配置关系好感）';
+                            cfg.appendChild(tip);
+                        }
+                    } else if (kind.value === 'unified') {
                         const who = document.createElement('select');
                         who.innerHTML = roster.map(c => `<option value="${c.id}">${c.name || c.id}</option>`).join('');
                         who.value = e.charId || roster[0]?.id || '';
@@ -731,6 +885,38 @@ const Editor = {
                         cfg.appendChild(key);
                         cfg.appendChild(op);
                         cfg.appendChild(val);
+                    } else {
+                        e.targetType = e.targetType === 'step' ? 'step' : 'scene';
+                        const targetType = document.createElement('select');
+                        targetType.innerHTML = '<option value="scene">场景</option><option value="step">步骤</option>';
+                        targetType.value = e.targetType;
+                        const targetSel = document.createElement('select');
+                        const renderTargets = () => {
+                            if (targetType.value === 'scene') {
+                                targetSel.innerHTML = scenes
+                                    .map(sc => `<option value="${sc.id}">${sc.name || sc.id}</option>`)
+                                    .join('');
+                            } else {
+                                targetSel.innerHTML = stepOptions
+                                    .map(st => `<option value="${st.id}">${st.label}</option>`)
+                                    .join('');
+                            }
+                            if ([...targetSel.options].some(op0 => op0.value === e.targetId)) targetSel.value = e.targetId;
+                            else targetSel.value = targetSel.options[0] ? targetSel.options[0].value : '';
+                            e.targetId = targetSel.value || '';
+                            e.targetType = targetType.value;
+                        };
+                        targetType.onchange = renderTargets;
+                        targetSel.onchange = () => (e.targetId = targetSel.value || '');
+                        renderTargets();
+                        const valSel = document.createElement('select');
+                        valSel.innerHTML = '<option value="0">0（未出现）</option><option value="1">1（已出现）</option>';
+                        valSel.value = Number(e.val) ? '1' : '0';
+                        valSel.onchange = () => (e.val = Number(valSel.value) ? 1 : 0);
+                        cfg.appendChild(targetType);
+                        cfg.appendChild(targetSel);
+                        cfg.appendChild(document.createTextNode('设为'));
+                        cfg.appendChild(valSel);
                     }
 
                     const del = document.createElement('button');
@@ -755,8 +941,12 @@ const Editor = {
             addRel.className = 'mini-btn';
             addRel.textContent = '+ 关系好感';
             addRel.onclick = () => {
-                const from = roster[0]?.id || '';
-                const to = roster.find(x => x.id && x.id !== from)?.id || from;
+                const from = relationSourceIds[0] || '';
+                const to = getAllowedRelationTargets(from)[0] || '';
+                if (!to) {
+                    alert('请先在人物预设里为该人物增加至少一条关系好感属性。');
+                    return;
+                }
                 effectsArray.push({ kind: 'relation', from, to, delta: 0 });
                 render();
             };
@@ -770,6 +960,19 @@ const Editor = {
             };
             addBar.appendChild(addRel);
             addBar.appendChild(addUni);
+            const addAppear = document.createElement('button');
+            addAppear.className = 'mini-btn';
+            addAppear.textContent = '+ 出现值';
+            addAppear.onclick = () => {
+                effectsArray.push({
+                    kind: 'appearance',
+                    targetType: 'scene',
+                    targetId: scenes[0] && scenes[0].id ? scenes[0].id : '',
+                    val: 1
+                });
+                render();
+            };
+            addBar.appendChild(addAppear);
 
             root.appendChild(addBar);
             root.appendChild(wrap);
@@ -781,7 +984,21 @@ const Editor = {
         if (!this.projectData || !row) return;
         const roster = this.projectData.characterRoster || [];
         const defs = this.projectData.unifiedAttributes || [];
+        const relationDefs = this.projectData.relationAttributes || {};
+        const scenes = this.projectData.scenes || [];
+        const stepOptions = [];
+        scenes.forEach(sc => {
+            (sc.steps || []).forEach((st, idx) => {
+                if (!st || !st.id) return;
+                stepOptions.push({ id: st.id, label: `${sc.name || sc.id} · #${idx + 1} ${this.getStepTypeLabel(st.type || 'dialogue')}` });
+            });
+        });
         const unifiedKeys = ['存在', ...defs.map(d => d && d.key).filter(Boolean)];
+        const relationSourceIds = roster
+            .map(c => c && c.id)
+            .filter(id => id && Object.keys((relationDefs && relationDefs[id]) || {}).length > 0);
+        const getAllowedRelationTargets = fromId =>
+            Object.keys((relationDefs && relationDefs[fromId]) || {}).filter(tid => tid && tid !== fromId);
 
         const c0 = row.condition || { type: 'var', key: '', op: '>=', value: 0 };
         row.condition = c0;
@@ -794,7 +1011,7 @@ const Editor = {
 
             const type = document.createElement('select');
             type.innerHTML =
-                `<option value="var">变量</option><option value="relation">关系好感</option><option value="unified">统一属性</option>`;
+                `<option value="var">变量</option><option value="relation">关系好感</option><option value="unified">统一属性</option><option value="appearance">出现值</option>`;
             type.value = c0.type || 'var';
 
             const op = document.createElement('select');
@@ -818,13 +1035,38 @@ const Editor = {
                     cfg.appendChild(val);
                 } else if (type.value === 'relation') {
                     const from = document.createElement('select');
-                    from.innerHTML = roster.map(c => `<option value="${c.id}">${c.name || c.id}</option>`).join('');
-                    from.value = c0.from || roster[0]?.id || '';
-                    from.onchange = () => (c0.from = from.value);
+                    from.innerHTML = relationSourceIds
+                        .map(id => {
+                            const c = roster.find(x => x.id === id);
+                            return `<option value="${id}">${(c && (c.name || c.id)) || id}</option>`;
+                        })
+                        .join('');
+                    from.value = c0.from || relationSourceIds[0] || '';
+                    from.onchange = () => {
+                        c0.from = from.value;
+                        const allowed = getAllowedRelationTargets(c0.from);
+                        to.innerHTML = allowed
+                            .map(tid => {
+                                const c = roster.find(x => x.id === tid);
+                                const nm = c ? c.name || c.id : tid;
+                                return `<option value="${tid}">${nm}</option>`;
+                            })
+                            .join('');
+                        c0.to = allowed[0] || '';
+                        to.value = c0.to;
+                    };
                     const to = document.createElement('select');
-                    to.innerHTML = roster.map(c => `<option value="${c.id}">${c.name || c.id}</option>`).join('');
-                    to.value = c0.to || roster[0]?.id || '';
+                    const toAllowed = getAllowedRelationTargets(c0.from || from.value);
+                    to.innerHTML = toAllowed
+                        .map(tid => {
+                            const c = roster.find(x => x.id === tid);
+                            const nm = c ? c.name || c.id : tid;
+                            return `<option value="${tid}">${nm}</option>`;
+                        })
+                        .join('');
+                    to.value = c0.to || toAllowed[0] || '';
                     to.onchange = () => (c0.to = to.value);
+                    to.disabled = toAllowed.length === 0;
                     const val = document.createElement('input');
                     val.type = 'number';
                     val.value = c0.value != null ? c0.value : 0;
@@ -833,7 +1075,7 @@ const Editor = {
                     cfg.appendChild(to);
                     cfg.appendChild(op);
                     cfg.appendChild(val);
-                } else {
+                } else if (type.value === 'unified') {
                     const who = document.createElement('select');
                     who.innerHTML = roster.map(c => `<option value="${c.id}">${c.name || c.id}</option>`).join('');
                     who.value = c0.charId || roster[0]?.id || '';
@@ -853,6 +1095,38 @@ const Editor = {
                     cfg.appendChild(key);
                     cfg.appendChild(op);
                     cfg.appendChild(val);
+                } else {
+                    c0.targetType = c0.targetType === 'step' ? 'step' : 'scene';
+                    const targetType = document.createElement('select');
+                    targetType.innerHTML = '<option value="scene">场景</option><option value="step">步骤</option>';
+                    targetType.value = c0.targetType;
+                    const targetSel = document.createElement('select');
+                    const renderTargets = () => {
+                        if (targetType.value === 'scene') {
+                            targetSel.innerHTML = scenes
+                                .map(sc => `<option value="${sc.id}">${sc.name || sc.id}</option>`)
+                                .join('');
+                        } else {
+                            targetSel.innerHTML = stepOptions
+                                .map(st => `<option value="${st.id}">${st.label}</option>`)
+                                .join('');
+                        }
+                        if ([...targetSel.options].some(op0 => op0.value === c0.targetId)) targetSel.value = c0.targetId;
+                        else targetSel.value = targetSel.options[0] ? targetSel.options[0].value : '';
+                        c0.targetType = targetType.value;
+                        c0.targetId = targetSel.value || '';
+                    };
+                    targetType.onchange = renderTargets;
+                    targetSel.onchange = () => (c0.targetId = targetSel.value || '');
+                    renderTargets();
+                    const valSel = document.createElement('select');
+                    valSel.innerHTML = '<option value="0">0（未出现）</option><option value="1">1（已出现）</option>';
+                    valSel.value = Number(c0.value) ? '1' : '0';
+                    valSel.onchange = () => (c0.value = Number(valSel.value) ? 1 : 0);
+                    cfg.appendChild(targetType);
+                    cfg.appendChild(targetSel);
+                    cfg.appendChild(op);
+                    cfg.appendChild(valSel);
                 }
             };
 
@@ -864,15 +1138,29 @@ const Editor = {
                     delete c0.to;
                     delete c0.charId;
                 } else if (type.value === 'relation') {
-                    c0.from = c0.from || roster[0]?.id || '';
-                    c0.to = c0.to || roster.find(x => x.id && x.id !== c0.from)?.id || '';
+                    c0.from = c0.from || relationSourceIds[0] || '';
+                    c0.to = c0.to || getAllowedRelationTargets(c0.from)[0] || '';
                     delete c0.key;
                     delete c0.charId;
+                    delete c0.targetType;
+                    delete c0.targetId;
                 } else {
+                    if (type.value === 'appearance') {
+                        c0.targetType = c0.targetType === 'step' ? 'step' : 'scene';
+                        c0.targetId = c0.targetId || (c0.targetType === 'scene' ? (scenes[0] && scenes[0].id ? scenes[0].id : '') : (stepOptions[0] && stepOptions[0].id ? stepOptions[0].id : ''));
+                        c0.value = Number(c0.value) ? 1 : 0;
+                        delete c0.key;
+                        delete c0.charId;
+                        delete c0.from;
+                        delete c0.to;
+                    } else {
                     c0.charId = c0.charId || roster[0]?.id || '';
                     c0.key = c0.key || unifiedKeys[0] || '存在';
                     delete c0.from;
                     delete c0.to;
+                    delete c0.targetType;
+                    delete c0.targetId;
+                    }
                 }
                 renderCfg();
             };
@@ -1263,7 +1551,7 @@ const Editor = {
                 cg: {},
                 hideDialogue: true,
                 hideCharacter: true,
-                cgLoop: false,
+                cgLoop: true,
                 cgStopAtStepId: '',
                 cgMusicStopAtStepId: '',
                 cgMusicAlias: '',
@@ -1308,6 +1596,7 @@ const Editor = {
                         weight: 50,
                         next: { type: 'scene', sceneId: sid, labelSuffix: '' },
                         condition: null,
+                        appearedValue: 0,
                         effects: []
                     },
                     {
@@ -1315,16 +1604,18 @@ const Editor = {
                         weight: 50,
                         next: { type: 'scene', sceneId: sid, labelSuffix: '' },
                         condition: null,
+                        appearedValue: 0,
                         effects: []
                     }
                 ],
                 dramaticEffect: '',
                 soundAlias: '',
+                appearedValue: 0,
                 effects: []
             };
         }
         if (type === 'narration') {
-            return { id, type: 'narration', text: '', dramaticEffect: '', soundAlias: '', effects: [] };
+            return { id, type: 'narration', text: '', dramaticEffect: '', soundAlias: '', appearedValue: 0, effects: [] };
         }
         return {
             id,
@@ -1336,6 +1627,7 @@ const Editor = {
             text: '',
             dramaticEffect: '',
             soundAlias: '',
+            appearedValue: 0,
             effects: []
         };
     },
@@ -1501,9 +1793,11 @@ const Editor = {
                 sounds: '🔊 音效文件',
                 particles: '✨ 粒子特效'
             };
+            const folderHint = `注册后目录：assets/${this.assetTypeToSubdir(type)}/`;
 
             card.innerHTML = `
                 <h3>${titleMap[type] || type}</h3>
+                <div class="field-hint">${folderHint}</div>
                 <div class="asset-upload">
                     <div class="asset-upload-actions">
                         <button type="button" class="btn-bind-dir">绑定本类资源文件夹…</button>
@@ -1520,7 +1814,9 @@ const Editor = {
                     <input type="text" class="asset-name-input" placeholder="起个别名...">
                     <button type="button" class="btn-reg">注册</button>
                 </div>
-                <div class="asset-list" id="list-${type}"></div>
+                <button type="button" class="btn-check-asset-list mini-btn">检查并清理失效资源</button>
+                <button type="button" class="btn-toggle-asset-list mini-btn">已注册资源</button>
+                <div class="asset-list" id="list-${type}" style="display:none"></div>
             `;
 
             const regBtn = card.querySelector('.btn-reg');
@@ -1529,6 +1825,21 @@ const Editor = {
             const fileInput = card.querySelector('.asset-file-input');
             const nameInput = card.querySelector('.asset-name-input');
             const pickedLabel = card.querySelector('.asset-picked-label');
+            const toggleListBtn = card.querySelector('.btn-toggle-asset-list');
+            const checkListBtn = card.querySelector('.btn-check-asset-list');
+            const listEl = card.querySelector(`#list-${type}`);
+            if (toggleListBtn && listEl) {
+                toggleListBtn.onclick = () => {
+                    const opening = listEl.style.display === 'none';
+                    listEl.style.display = opening ? 'block' : 'none';
+                    toggleListBtn.textContent = opening ? '收起已注册资源' : '已注册资源';
+                };
+            }
+            if (checkListBtn) {
+                checkListBtn.onclick = async () => {
+                    await this.checkAndCleanupAssetType(type);
+                };
+            }
 
             const setPickedUI = f => {
                 pickedLabel.textContent = f ? `已选：${f.name}` : '';
@@ -1607,6 +1918,8 @@ const Editor = {
 
     switchTab(tab) {
         this.stepsPageVisible = false;
+        const fxView = document.getElementById('view-step-fx');
+        if (fxView) fxView.style.display = 'none';
         const viewSteps = document.getElementById('view-steps');
         if (viewSteps) viewSteps.style.display = 'none';
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1640,6 +1953,157 @@ const Editor = {
         });
     },
 
+    async _assetPathExistsOnProjectRoot(projectRoot, relPath) {
+        if (!projectRoot || !relPath) return false;
+        const clean = String(relPath).replace(/\\/g, '/').replace(/^\/+/, '');
+        const parts = clean.split('/').filter(Boolean);
+        if (!parts.length) return false;
+        let dir = projectRoot;
+        try {
+            for (let i = 0; i < parts.length - 1; i++) {
+                dir = await dir.getDirectoryHandle(parts[i], { create: false });
+            }
+            await dir.getFileHandle(parts[parts.length - 1], { create: false });
+            return true;
+        } catch {
+            return false;
+        }
+    },
+
+    _clearReferencesForRemovedAsset(type, name) {
+        if (!this.projectData || !name) return 0;
+        let changed = 0;
+        const scenes = this.projectData.scenes || [];
+        const roster = this.projectData.characterRoster || [];
+        if (type === 'characters') {
+            roster.forEach(c => {
+                Object.values(c.expressions || {}).forEach(ex => {
+                    if (ex && ex.spriteAsset === name) {
+                        ex.spriteAsset = '';
+                        changed++;
+                    }
+                });
+            });
+            scenes.forEach(sc => {
+                if (sc.character && sc.character.url === name) {
+                    sc.character.url = '';
+                    changed++;
+                }
+            });
+        } else if (type === 'backgrounds') {
+            scenes.forEach(sc => {
+                if (sc.background && sc.background.url === name) {
+                    sc.background.url = '';
+                    changed++;
+                }
+            });
+        } else if (type === 'storyGraphics') {
+            scenes.forEach(sc => {
+                if (sc.storyGraphic && sc.storyGraphic.url === name) {
+                    sc.storyGraphic.url = '';
+                    changed++;
+                }
+                (sc.steps || []).forEach(st => {
+                    if (st && st.type === 'cg' && st.cg && st.cg.url === name) {
+                        st.cg.url = '';
+                        changed++;
+                    }
+                });
+            });
+        } else if (type === 'music') {
+            scenes.forEach(sc => {
+                if (sc.music && sc.music.url === name) {
+                    sc.music.url = '';
+                    changed++;
+                }
+                (sc.steps || []).forEach(st => {
+                    if (st && st.type === 'cg' && st.cgMusicAlias === name) {
+                        st.cgMusicAlias = '';
+                        changed++;
+                    }
+                });
+            });
+        } else if (type === 'sounds') {
+            scenes.forEach(sc => {
+                (sc.steps || []).forEach(st => {
+                    if (st && st.soundAlias === name) {
+                        st.soundAlias = '';
+                        changed++;
+                    }
+                });
+            });
+        } else if (type === 'particles') {
+            scenes.forEach(sc => {
+                const ef = sc.effects || {};
+                if (Array.isArray(ef.overlays)) {
+                    const before = ef.overlays.length;
+                    ef.overlays = ef.overlays.filter(x => x !== name);
+                    changed += before - ef.overlays.length;
+                }
+                (sc.steps || []).forEach(st => {
+                    const fx = st && st.stepFx && st.stepFx.romantic;
+                    if (fx && fx.ambient === name) {
+                        fx.ambient = '';
+                        changed++;
+                    }
+                });
+            });
+        }
+        return changed;
+    },
+
+    async checkAndCleanupAssetType(type) {
+        if (!AssetManager || !AssetManager.library || !Array.isArray(AssetManager.library[type])) return;
+        const rows = AssetManager.library[type].slice();
+        if (!rows.length) {
+            alert('该类型暂无已注册资源。');
+            return;
+        }
+        const projectRoot =
+            typeof DirectoryMemory !== 'undefined' && DirectoryMemory.getProjectRootDirectory
+                ? await DirectoryMemory.getProjectRootDirectory()
+                : null;
+        const invalid = [];
+        for (const row of rows) {
+            if (!row || !row.name) continue;
+            if (row.src) continue;
+            const relPath = row.path || '';
+            if (!relPath) {
+                invalid.push({ name: row.name, reason: '无文件路径' });
+                continue;
+            }
+            if (!/^assets\//i.test(relPath)) continue;
+            if (!projectRoot) {
+                invalid.push({ name: row.name, reason: '项目目录未绑定或无权限' });
+                continue;
+            }
+            const ok = await this._assetPathExistsOnProjectRoot(projectRoot, relPath);
+            if (!ok) invalid.push({ name: row.name, reason: '文件不存在或目录损坏' });
+        }
+        if (!invalid.length) {
+            alert('检查完成：未发现失效资源。');
+            return;
+        }
+        const preview = invalid
+            .slice(0, 12)
+            .map(x => `- ${x.name}（${x.reason}）`)
+            .join('\n');
+        const more = invalid.length > 12 ? `\n...另有 ${invalid.length - 12} 项` : '';
+        const ok = confirm(
+            `检测到 ${invalid.length} 项失效资源：\n${preview}${more}\n\n将执行：\n1) 从资源注册库移除\n2) 自动清空所有引用字段\n\n是否继续？`
+        );
+        if (!ok) return;
+        let clearedRefs = 0;
+        invalid.forEach(item => {
+            clearedRefs += this._clearReferencesForRemovedAsset(type, item.name);
+            AssetManager.removeAsset(type, item.name);
+        });
+        this.refreshAssetList(type);
+        this.refreshCastList();
+        if (this.currentSceneId) this.selectScene(this.currentSceneId);
+        alert(`清理完成：移除 ${invalid.length} 项失效资源，清空引用 ${clearedRefs} 处。`);
+    },
+
     addCastMember() {
         if (!this.projectData) return alert('请先加载项目');
         const id = 'cast_' + Date.now();
@@ -1651,14 +2115,18 @@ const Editor = {
                 neutral: { spriteAsset: '' }
             }
         });
+        this.activeCastId = id;
         this.refreshCastList();
     },
 
     refreshCastList() {
         const root = document.getElementById('cast-list');
+        const picker = document.getElementById('cast-picker');
+        const searchText = String(this.castSearchText || '').trim().toLowerCase();
         if (!root) return;
         if (!this.projectData) {
             root.innerHTML = '<p class="cast-empty">请先加载项目后再编辑人物预设。</p>';
+            if (picker) picker.innerHTML = '<option value="">选择人物并打开预设…</option>';
             return;
         }
         if (!this.projectData.relationAttributes) this.projectData.relationAttributes = {};
@@ -1666,8 +2134,32 @@ const Editor = {
         root.innerHTML = '';
         const esc = t =>
             String(t ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        const roster = this.projectData.characterRoster || [];
+        if (picker) {
+            picker.innerHTML = '<option value="">选择人物并打开预设…</option>';
+            roster.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name || c.id;
+                picker.appendChild(opt);
+            });
+            if (this.activeCastId && roster.some(c => c.id === this.activeCastId)) {
+                picker.value = this.activeCastId;
+            } else {
+                this.activeCastId = '';
+            }
+        }
+        const matched = roster.filter(c => {
+            if (!searchText) return true;
+            return String(c.name || '').toLowerCase().includes(searchText) || String(c.id || '').toLowerCase().includes(searchText);
+        });
+        const selected = this.activeCastId ? matched.filter(c => c.id === this.activeCastId) : matched.slice(0, 1);
+        if (!selected.length) {
+            root.innerHTML = '<p class="cast-empty">没有匹配人物，请调整搜索或新增人物。</p>';
+            return;
+        }
 
-        this.projectData.characterRoster.forEach(c => {
+        selected.forEach(c => {
             const card = document.createElement('div');
             card.className = 'cast-card';
             const exprKeys = Object.keys(c.expressions || {});
@@ -1736,6 +2228,7 @@ const Editor = {
                 if (!confirm('确定删除该人物及其情绪绑定？')) return;
                 const idx = this.projectData.characterRoster.findIndex(x => x.id === c.id);
                 if (idx >= 0) this.projectData.characterRoster.splice(idx, 1);
+                if (this.activeCastId === c.id) this.activeCastId = '';
                 this.refreshCastList();
                 if (this.currentSceneId) this.selectScene(this.currentSceneId);
             };
@@ -1797,7 +2290,7 @@ const Editor = {
                     row.style.gridTemplateColumns = '1fr 90px 70px';
                     row.style.gap = '8px';
                     const lab = document.createElement('div');
-                    lab.textContent = `对「${name}」好感度`;
+                    lab.textContent = `人物：${c.name || c.id} · 好感对象：${name}`;
                     const val = document.createElement('input');
                     val.type = 'number';
                     val.min = '0';
@@ -1887,7 +2380,12 @@ const Editor = {
     refreshSceneList() {
         const list = document.getElementById('scene-list');
         list.innerHTML = '';
+        const kw = String(this.sceneSearchText || '').trim().toLowerCase();
         this.projectData.scenes.forEach(s => {
+            if (kw) {
+                const text = `${s.name || ''} ${s.id || ''}`.toLowerCase();
+                if (!text.includes(kw)) return;
+            }
             const div = document.createElement('div');
             div.className = 'scene-item';
             if (this.currentSceneId === s.id) div.classList.add('active');
@@ -2138,7 +2636,7 @@ const Editor = {
             left.style.minWidth = '0';
             const handle = document.createElement('span');
             handle.className = 'drag-handle';
-            handle.textContent = '⇅ 拖拽';
+            handle.textContent = step.type === 'cg' ? '拖拽 #CG' : '⇅ 拖拽';
             handle.setAttribute('draggable', 'true');
             handle.title = '按住此处拖拽排序';
             const title = document.createElement('span');
@@ -2178,6 +2676,35 @@ const Editor = {
             };
             left.appendChild(btnSetTag);
             left.appendChild(btnCancelTag);
+            if (step.type === 'cg') {
+                const btnHideDlg = document.createElement('button');
+                btnHideDlg.className = 'mini-btn';
+                const syncHideDlg = () => {
+                    const on = step.hideDialogue !== false;
+                    btnHideDlg.textContent = on ? '对话框消失' : '对话框显示';
+                    btnHideDlg.classList.toggle('is-on', on);
+                };
+                btnHideDlg.onclick = () => {
+                    step.hideDialogue = !(step.hideDialogue !== false);
+                    syncHideDlg();
+                };
+                syncHideDlg();
+                left.appendChild(btnHideDlg);
+
+                const btnHideChar = document.createElement('button');
+                btnHideChar.className = 'mini-btn';
+                const syncHideChar = () => {
+                    const on = step.hideCharacter !== false;
+                    btnHideChar.textContent = on ? '显示时隐藏立绘' : '显示时保留立绘';
+                    btnHideChar.classList.toggle('is-on', on);
+                };
+                btnHideChar.onclick = () => {
+                    step.hideCharacter = !(step.hideCharacter !== false);
+                    syncHideChar();
+                };
+                syncHideChar();
+                left.appendChild(btnHideChar);
+            }
 
             if (step.type === 'choice') {
                 const addOpt = document.createElement('button');
@@ -2395,174 +2922,135 @@ const Editor = {
                 rowText.children[1].classList.add('full');
                 card.appendChild(rowText);
             } else if (step.type === 'cg') {
-                const row = document.createElement('div');
-                row.className = 'step-row';
-                row.style.display = 'flex';
-                row.style.flexWrap = 'wrap';
-                row.style.gap = '8px';
-                row.style.alignItems = 'center';
-                row.appendChild(Object.assign(document.createElement('label'), { textContent: 'CG 媒体' }));
+                const cgIdxInScene = (scene.steps || []).findIndex(s => s && s.id === step.id);
+                const buildStopSelect = fieldKey => {
+                    const sel = document.createElement('select');
+                    const opts = ['<option value="">选择在第几步停止</option>'];
+                    if (cgIdxInScene >= 0) {
+                        for (let fi = cgIdxInScene + 1; fi < (scene.steps || []).length; fi++) {
+                            const st = scene.steps[fi];
+                            if (!st) continue;
+                            opts.push(`<option value="${st.id}">#${fi + 1} ${this.getStepTypeLabel(st.type || 'dialogue')}</option>`);
+                        }
+                    }
+                    sel.innerHTML = opts.join('');
+                    sel.value = step[fieldKey] || '';
+                    sel.onchange = () => (step[fieldKey] = sel.value || '');
+                    return sel;
+                };
+
+                const rowMedia = document.createElement('div');
+                rowMedia.className = 'step-row';
+                rowMedia.style.display = 'flex';
+                rowMedia.style.flexWrap = 'nowrap';
+                rowMedia.style.gap = '6px';
+                rowMedia.style.alignItems = 'center';
+                rowMedia.style.overflowX = 'auto';
+                rowMedia.appendChild(Object.assign(document.createElement('label'), { textContent: 'CG 媒体' }));
                 const libSel = document.createElement('select');
-                libSel.appendChild(Object.assign(document.createElement('option'), { value: '__none__', textContent: '无（清除）' }));
-                const phLib = document.createElement('option');
-                phLib.value = '';
-                phLib.disabled = true;
-                phLib.textContent = '-- 从资源库选择 --';
-                libSel.appendChild(phLib);
+                libSel.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: '选择素材' }));
+                libSel.appendChild(Object.assign(document.createElement('option'), { value: '__none__', textContent: '无' }));
                 AssetManager.getList('storyGraphics').forEach(n => {
                     const o = document.createElement('option');
                     o.value = n;
                     o.textContent = n;
-                    if (step.cg && step.cg.url === n) o.selected = true;
                     libSel.appendChild(o);
                 });
                 const hasEmbedOnly = step.cg && step.cg.embeddedDataUrl && !step.cg.url;
                 if (hasEmbedOnly) {
                     const em = document.createElement('option');
                     em.value = '__embedded__';
-                    em.textContent = '已嵌入（本地上传）';
-                    em.selected = true;
+                    em.textContent = '已嵌入';
                     libSel.appendChild(em);
-                } else if (!step.cg || (!step.cg.url && !step.cg.embeddedDataUrl)) {
-                    libSel.value = '__none__';
+                    libSel.value = '__embedded__';
+                } else {
+                    libSel.value = (step.cg && step.cg.url) || '';
                 }
                 libSel.onchange = () => {
                     const v = libSel.value;
                     if (v === '__none__') {
                         step.cg = {};
-                        this.renderSteps();
-                        return;
+                        return this.renderSteps();
                     }
-                    if (v === '__embedded__') return;
-                    if (!v) return;
+                    if (v === '__embedded__' || !v) return;
                     const path = (AssetManager.getPath && AssetManager.getPath('storyGraphics', v)) || v;
                     step.cg = { url: v, mediaType: this.inferCgMediaType(path) };
                     this.renderSteps();
                 };
-                row.appendChild(libSel);
                 const pickBtn = document.createElement('button');
                 pickBtn.className = 'mini-btn';
-                pickBtn.textContent =
-                    step.cg && (step.cg.embeddedDataUrl || step.cg.url) ? '已设置，重新选择' : '立即上传';
+                pickBtn.textContent = '上传';
                 pickBtn.onclick = async () => {
-                    const result = await this.pickAndRegisterAsset('storyGraphics', `step-cg-${scene.id}-${step.id}`, {
-                        allowVideo: true
-                    });
+                    const result = await this.pickAndRegisterAsset('storyGraphics', `step-cg-${scene.id}-${step.id}`, { allowVideo: true });
                     if (!result) return;
                     const mediaType = result.file.type.startsWith('video/') ? 'video' : 'image';
                     step.cg = { url: result.alias, fileName: result.file.name, mediaType };
                     this.renderSteps();
                 };
-                row.appendChild(pickBtn);
-                card.appendChild(row);
-
-                const rowCbs = document.createElement('div');
-                rowCbs.className = 'step-row';
-                rowCbs.appendChild(Object.assign(document.createElement('label'), { textContent: '显示规则' }));
-                const box = document.createElement('div');
-                box.style.display = 'flex';
-                box.style.gap = '12px';
-                box.style.flexWrap = 'wrap';
-                const cbDlg = document.createElement('input');
-                cbDlg.type = 'checkbox';
-                cbDlg.checked = step.hideDialogue !== false; // 默认 true
-                cbDlg.onchange = () => (step.hideDialogue = cbDlg.checked);
-                const l1 = document.createElement('label');
-                l1.style.display = 'flex';
-                l1.style.alignItems = 'center';
-                l1.style.gap = '6px';
-                l1.appendChild(cbDlg);
-                l1.appendChild(document.createTextNode('对话框消失（默认）'));
-                const cbChar = document.createElement('input');
-                cbChar.type = 'checkbox';
-                cbChar.checked = step.hideCharacter !== false; // 默认 true
-                cbChar.onchange = () => (step.hideCharacter = cbChar.checked);
-                const l2 = document.createElement('label');
-                l2.style.display = 'flex';
-                l2.style.alignItems = 'center';
-                l2.style.gap = '6px';
-                l2.appendChild(cbChar);
-                l2.appendChild(document.createTextNode('显示时隐藏立绘（默认）'));
-                const cbLoop = document.createElement('input');
-                cbLoop.type = 'checkbox';
-                cbLoop.checked = !!step.cgLoop;
-                cbLoop.onchange = () => (step.cgLoop = cbLoop.checked);
-                const l3 = document.createElement('label');
-                l3.style.display = 'flex';
-                l3.style.alignItems = 'center';
-                l3.style.gap = '6px';
-                l3.appendChild(cbLoop);
-                l3.appendChild(document.createTextNode('视频循环'));
-                box.appendChild(l1);
-                box.appendChild(l2);
-                box.appendChild(l3);
-                rowCbs.appendChild(box);
-                card.appendChild(rowCbs);
-
-                const cgIdxInScene = (scene.steps || []).findIndex(s => s && s.id === step.id);
-                const mkFollowSel = (label, fieldKey) => {
-                    const rowFollow = document.createElement('div');
-                    rowFollow.className = 'step-row';
-                    rowFollow.appendChild(Object.assign(document.createElement('label'), { textContent: label }));
-                    const sel = document.createElement('select');
-                    const opts = ['<option value="">（默认：直到被顶替或场景结束）</option>'];
-                    if (cgIdxInScene >= 0) {
-                        for (let fi = cgIdxInScene + 1; fi < (scene.steps || []).length; fi++) {
-                            const st = scene.steps[fi];
-                            if (!st) continue;
-                            opts.push(
-                                `<option value="${st.id}">#${fi + 1} ${this.getStepTypeLabel(st.type || 'dialogue')}</option>`
-                            );
-                        }
-                    }
-                    sel.innerHTML = opts.join('');
-                    sel.value = step[fieldKey] || '';
-                    sel.onchange = () => {
-                        step[fieldKey] = sel.value || '';
-                    };
-                    rowFollow.appendChild(sel);
-                    card.appendChild(rowFollow);
+                const btnVideoLoop = document.createElement('button');
+                btnVideoLoop.className = 'mini-btn';
+                const syncVideoLoop = () => {
+                    const on = step.cgLoop !== false;
+                    btnVideoLoop.textContent = '视频循环';
+                    btnVideoLoop.classList.toggle('is-on', on);
                 };
-                mkFollowSel('停止 CG 画面（进入该步时）', 'cgStopAtStepId');
-                mkFollowSel('停止 CG 音乐（进入该步时）', 'cgMusicStopAtStepId');
+                btnVideoLoop.onclick = () => {
+                    step.cgLoop = !(step.cgLoop !== false);
+                    syncVideoLoop();
+                };
+                syncVideoLoop();
+                rowMedia.appendChild(libSel);
+                rowMedia.appendChild(pickBtn);
+                rowMedia.appendChild(btnVideoLoop);
+                rowMedia.appendChild(Object.assign(document.createElement('label'), { textContent: '停止 CG 画面' }));
+                rowMedia.appendChild(buildStopSelect('cgStopAtStepId'));
+                card.appendChild(rowMedia);
 
-                const rowCgMus = document.createElement('div');
-                rowCgMus.className = 'step-row';
-                rowCgMus.appendChild(Object.assign(document.createElement('label'), { textContent: 'CG 专属音乐' }));
-                const musWrap = document.createElement('div');
-                musWrap.style.display = 'flex';
-                musWrap.style.flexWrap = 'wrap';
-                musWrap.style.gap = '8px';
-                musWrap.style.alignItems = 'center';
+                const rowMusic = document.createElement('div');
+                rowMusic.className = 'step-row';
+                rowMusic.style.display = 'flex';
+                rowMusic.style.flexWrap = 'nowrap';
+                rowMusic.style.gap = '6px';
+                rowMusic.style.alignItems = 'center';
+                rowMusic.style.overflowX = 'auto';
+                rowMusic.appendChild(Object.assign(document.createElement('label'), { textContent: 'CG音乐' }));
                 const musSel = document.createElement('select');
                 const musNames = (typeof AssetManager !== 'undefined' && AssetManager.getList ? AssetManager.getList('music') : []) || [];
-                musSel.innerHTML = `<option value="">（无，沿用场景 BGM）</option>` + musNames.map(x => `<option value="${x}">${x}</option>`).join('');
+                musSel.innerHTML =
+                    `<option value="">选择音乐</option><option value="__none__">无</option>` +
+                    musNames.map(x => `<option value="${x}">${x}</option>`).join('');
                 musSel.value = step.cgMusicAlias || '';
-                musSel.onchange = () => (step.cgMusicAlias = musSel.value || '');
+                musSel.onchange = () => {
+                    if (musSel.value === '__none__') step.cgMusicAlias = '';
+                    else step.cgMusicAlias = musSel.value || '';
+                };
                 const btnMusUp = document.createElement('button');
                 btnMusUp.className = 'mini-btn';
-                btnMusUp.textContent = '上传音乐';
+                btnMusUp.textContent = '上传';
                 btnMusUp.onclick = async () => {
                     const result = await this.pickAndRegisterAsset('music', `step-cg-music-${scene.id}-${step.id}`);
                     if (!result) return;
                     step.cgMusicAlias = result.alias;
                     this.renderSteps();
                 };
-                const cbMusLoop = document.createElement('input');
-                cbMusLoop.type = 'checkbox';
-                cbMusLoop.checked = step.cgMusicLoop !== false;
-                cbMusLoop.onchange = () => (step.cgMusicLoop = cbMusLoop.checked);
-                const lbMusLoop = document.createElement('label');
-                lbMusLoop.style.display = 'flex';
-                lbMusLoop.style.alignItems = 'center';
-                lbMusLoop.style.gap = '6px';
-                lbMusLoop.appendChild(cbMusLoop);
-                lbMusLoop.appendChild(document.createTextNode('音乐循环'));
-                musWrap.appendChild(musSel);
-                musWrap.appendChild(btnMusUp);
-                musWrap.appendChild(lbMusLoop);
-                rowCgMus.appendChild(musWrap);
-                card.appendChild(rowCgMus);
+                const btnMusLoop = document.createElement('button');
+                btnMusLoop.className = 'mini-btn';
+                const syncMusLoop = () => {
+                    const on = step.cgMusicLoop !== false;
+                    btnMusLoop.textContent = '音乐循环';
+                    btnMusLoop.classList.toggle('is-on', on);
+                };
+                btnMusLoop.onclick = () => {
+                    step.cgMusicLoop = !(step.cgMusicLoop !== false);
+                    syncMusLoop();
+                };
+                syncMusLoop();
+                rowMusic.appendChild(musSel);
+                rowMusic.appendChild(btnMusUp);
+                rowMusic.appendChild(btnMusLoop);
+                rowMusic.appendChild(Object.assign(document.createElement('label'), { textContent: '停止 CG 音乐' }));
+                rowMusic.appendChild(buildStopSelect('cgMusicStopAtStepId'));
+                card.appendChild(rowMusic);
             } else if (step.type === 'choice') {
                 const opts = Array.isArray(step.options) ? step.options : (step.options = []);
                 const defaultSid = (this.projectData.scenes[0] && this.projectData.scenes[0].id) || 'start';
@@ -2845,13 +3333,14 @@ const Editor = {
             };
             bottomActions.appendChild(btnAttr);
 
-            if (step.type === 'dialogue' || step.type === 'narration' || step.type === 'random') {
+            if (step.type === 'dialogue' || step.type === 'narration' || step.type === 'random' || step.type === 'cg' || step.type === 'choice') {
                 const btnCopySelf = document.createElement('button');
                 btnCopySelf.className = 'mini-btn';
                 btnCopySelf.textContent = '复制本步';
                 btnCopySelf.onclick = () => {
                     const clone = JSON.parse(JSON.stringify(step));
                     clone.id = `step_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+                    clone.labelSuffix = '';
                     if (clone.type === 'dialogue' || clone.type === 'narration') clone.text = '';
                     clone.soundAlias = '';
                     scene.steps.splice(idx + 1, 0, clone);
@@ -2865,7 +3354,7 @@ const Editor = {
             }
 
             if (
-                (step.type === 'dialogue' || step.type === 'narration' || step.type === 'random') &&
+                (step.type === 'dialogue' || step.type === 'narration' || step.type === 'random' || step.type === 'cg' || step.type === 'choice') &&
                 idx > 0
             ) {
                 const btnCopyPrev = document.createElement('button');
@@ -2876,6 +3365,7 @@ const Editor = {
                     if (!prev) return;
                     const clone = JSON.parse(JSON.stringify(prev));
                     clone.id = `step_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+                    clone.labelSuffix = '';
                     if (clone.type === 'dialogue' || clone.type === 'narration') clone.text = '';
                     clone.soundAlias = '';
                     scene.steps.splice(idx + 1, 0, clone);
@@ -3151,6 +3641,7 @@ const Editor = {
                     effects: { cgEntrance: '', overlays: [], combo: '', dramatic: '' },
                     text: '',
                     options: [],
+                    appearedValue: 0,
                     steps: [
                         {
                             id: `step_${Date.now()}_dlg`,
@@ -3160,6 +3651,7 @@ const Editor = {
                             charMode: 'big',
                             mirror: false,
                             text: '',
+                            appearedValue: 0,
                             effects: []
                         }
                     ]
@@ -3322,6 +3814,35 @@ const Editor = {
         }
         document.getElementById('load-project').click();
         return null;
+    },
+
+    /**
+     * 再次打开上次通过「打开」选中的 JSON（依赖 FileSystemFileHandle 缓存；纯 file input 选文件不会留下句柄）。
+     */
+    async openLastProjectFromMemory() {
+        const key = 'picker:project-load';
+        if (typeof DirectoryMemory === 'undefined' || !DirectoryMemory.getStartInHandle) {
+            alert('当前环境无法记忆上次项目。请使用 Chrome/Edge，并通过左侧「打开」选择 .json（不要用仅支持传统文件框的环境）。');
+            return;
+        }
+        const handle = await DirectoryMemory.getStartInHandle(key);
+        if (!handle || typeof handle.getFile !== 'function') {
+            alert('还没有记录到上次打开的项目。请先点击「打开」，在系统文件框里选择一次项目 JSON。');
+            return;
+        }
+        const ok = await DirectoryMemory.ensureReadPermission(handle);
+        if (!ok) {
+            alert('无法读取上次项目文件（权限未授予）。请使用「打开」重新选择文件。');
+            return;
+        }
+        let file;
+        try {
+            file = await handle.getFile();
+        } catch (e) {
+            alert('读取上次项目失败：' + (e && e.message ? e.message : String(e)));
+            return;
+        }
+        await this.loadProjectFromFile(file);
     },
 
     async registerAssetWithQuotaFallback(type, alias, file, originalDataUrl) {

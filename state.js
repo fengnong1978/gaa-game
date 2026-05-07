@@ -30,6 +30,8 @@ const GameState = {
     characters: {
         /** [charId]: { unified:{}, relations:{ [targetId]: { affection:number } } } */
     },
+    sceneAppearances: {},
+    stepAppearances: {},
 
     clamp01_100(n) {
         const x = Number(n);
@@ -63,6 +65,8 @@ const GameState = {
 
     /** 初始化角色属性：统一属性 + 关系属性 + 存在 */
     initCharacterState(project) {
+        this.sceneAppearances = {};
+        this.stepAppearances = {};
         const roster = (project && project.characterRoster) || [];
         const unifiedDefs = (project && project.unifiedAttributes) || [];
         const relDefs = (project && project.relationAttributes) || {};
@@ -93,6 +97,43 @@ const GameState = {
             });
             this.characters[id] = base;
         });
+        const scenes = (project && project.scenes) || [];
+        scenes.forEach(scene => {
+            if (!scene || !scene.id) return;
+            const seen = Number(scene.appearedValue) ? 1 : 0;
+            this.sceneAppearances[scene.id] = seen;
+            this.set(`scene_seen_${scene.id}`, seen);
+            (scene.steps || []).forEach(step => {
+                if (!step || !step.id) return;
+                const stepSeen = Number(step.appearedValue) ? 1 : 0;
+                this.stepAppearances[step.id] = stepSeen;
+                this.set(`step_seen_${step.id}`, stepSeen);
+            });
+        });
+    },
+
+    markSceneAppeared(sceneId) {
+        if (!sceneId) return;
+        this.sceneAppearances[sceneId] = 1;
+        this.set(`scene_seen_${sceneId}`, 1);
+    },
+
+    markStepAppeared(stepId) {
+        if (!stepId) return;
+        this.stepAppearances[stepId] = 1;
+        this.set(`step_seen_${stepId}`, 1);
+    },
+
+    setAppearance(targetType, targetId, value) {
+        if (!targetId) return;
+        const v = Number(value) ? 1 : 0;
+        if (targetType === 'scene') {
+            this.sceneAppearances[targetId] = v;
+            this.set(`scene_seen_${targetId}`, v);
+            return;
+        }
+        this.stepAppearances[targetId] = v;
+        this.set(`step_seen_${targetId}`, v);
     },
 
     getRelationAffection(fromId, toId) {
@@ -146,6 +187,10 @@ const GameState = {
                     const cur = Number(this.getUnified(e.charId, e.key)) || 0;
                     this.setUnified(e.charId, e.key, cur + (Number(e.val) || 0));
                 }
+                return;
+            }
+            if (e.kind === 'appearance') {
+                this.setAppearance(e.targetType === 'scene' ? 'scene' : 'step', e.targetId, e.val);
             }
         });
     },

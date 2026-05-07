@@ -7,30 +7,36 @@
 </head>
 <body style="margin: 0; background: #1e1e1e; color: #ccc; font-family: 'Microsoft YaHei', sans-serif; overflow: hidden;">
     <div id="editor-container">
-        <div id="toolbar">
-            <div class="tool-group">
-                <input type="file" id="load-project" accept=".json" style="display:none">
-                <button id="btn-new-project">🆕 新建项目</button>
-                <button id="btn-load">📂 打开项目</button>
-                <button id="btn-save">💾 导出项目</button>
-                <button id="btn-bind-project-root" type="button" title="将上传资源写入项目内 assets 文件夹，几乎不占浏览器存储">📁 绑定项目目录</button>
-                <button id="btn-debug-run">🧪 调试试玩</button>
-            </div>
-            <div class="tool-group">
-                <button id="tab-story" class="tab active">📖 剧情编辑</button>
-                <button id="tab-cast" class="tab">👤 人物预设</button>
-                <button id="tab-assets" class="tab">📦 资源库</button>
-                <span id="current-project-name" style="margin-left:20px">未加载项目</span>
-            </div>
-        </div>
+        <input type="file" id="load-project" accept=".json" style="display:none">
+        <span id="current-project-name" style="display:none"></span>
 
         <div id="main-layout">
             <div id="view-story" class="editor-view">
                 <div id="scene-list-panel">
                     <div class="panel-header">
                         <h3 style="margin:0">场景列表</h3>
+                        <button id="btn-add-scene">新增</button>
                         <button id="btn-toggle-scene-panel" type="button">收起</button>
-                        <button id="btn-add-scene">+ 新增</button>
+                        <button id="btn-open-scene-panel" type="button" style="display:none">打开</button>
+                    </div>
+                    <div class="scene-left-controls">
+                        <div class="scene-left-row scene-left-row--5">
+                            <button id="btn-new-project">新建</button>
+                            <button id="btn-load">打开</button>
+                            <button id="btn-open-last-project" type="button" title="需本机用「打开」选过一次项目，且浏览器支持文件句柄记忆">上次</button>
+                            <button id="btn-save">导出</button>
+                            <button id="btn-bind-project-root" type="button" title="将上传资源写入项目内 assets 文件夹，几乎不占浏览器存储">绑定</button>
+                        </div>
+                        <div class="scene-left-row">
+                            <button id="btn-debug-run">调试</button>
+                            <button id="tab-story" class="tab active">剧情</button>
+                            <button id="tab-cast" class="tab">人物</button>
+                            <button id="tab-assets" class="tab">资源</button>
+                        </div>
+                        <div class="scene-left-search">
+                            <input type="text" id="scene-search-input" placeholder="搜索场景输入框">
+                            <button id="btn-scene-search" type="button">搜索</button>
+                        </div>
                     </div>
                     <div id="scene-list"></div>
                 </div>
@@ -145,16 +151,26 @@
             </div>
             <div id="view-cast" class="editor-view view-cast-root" style="display:none">
                 <div id="cast-panel">
+                    <div class="subpage-toolbar">
+                        <button type="button" id="btn-back-from-cast">返回</button>
+                    </div>
                     <div class="cast-intro">
-                        <p>为每个<strong>人物</strong>建立档案。每种情绪旁点<strong>「上传并绑定」</strong>即可一步完成注册 + 绑定（不必先去资源库）。若需改图，可再上传覆盖同名资源，或从下拉列表选择已存在的立绘。</p>
-                        <p>双人亲吻等<strong>剧情大图</strong>请在<strong>场景编辑</strong>里用「选择图片并嵌入本场景」直接上传，无需进资源库；与单角色立绘分开。</p>
                         <button type="button" id="btn-edit-unified-attrs">编辑统一属性</button>
                         <button type="button" id="btn-add-cast">+ 新建人物</button>
+                    </div>
+                    <div class="cast-entry-tools">
+                        <input type="text" id="cast-search-input" placeholder="搜索已预设人物">
+                        <select id="cast-picker">
+                            <option value="">选择人物并打开预设…</option>
+                        </select>
                     </div>
                     <div id="cast-list"></div>
                 </div>
             </div>
             <div id="view-assets" class="editor-view view-assets-root" style="display:none">
+                <div class="subpage-toolbar">
+                    <button type="button" id="btn-back-from-assets">返回</button>
+                </div>
                 <div id="asset-manager-panel"></div>
             </div>
             <div id="view-steps" class="editor-view view-steps-root" style="display:none" aria-label="步骤全页编辑">
@@ -181,6 +197,18 @@
                         <button type="button" id="btn-label-search-page">搜索</button>
                     </div>
                     <div id="steps-list-page"></div>
+                </div>
+            </div>
+            <div id="view-step-fx" class="editor-view view-step-fx-root" style="display:none" aria-label="步骤特效音效全页编辑">
+                <div class="step-fx-page-wrap">
+                    <div class="step-fx-page-toolbar">
+                        <button type="button" id="btn-close-step-fx-page">返回</button>
+                        <div class="step-fx-page-title-block">
+                            <h2 class="step-fx-page-heading">步骤特效音效</h2>
+                            <p id="step-fx-page-subtitle" class="step-fx-page-sub"></p>
+                        </div>
+                    </div>
+                    <div id="step-fx-page-content"></div>
                 </div>
             </div>
         </div>

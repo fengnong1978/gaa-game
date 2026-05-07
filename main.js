@@ -14,11 +14,15 @@ function initResponsiveCanvas() {
     const windowHeight = window.innerHeight;
     const gameWidth = 1280;
     const gameHeight = 720;
-    const ratio = gameWidth / gameHeight;
+    /** 与设计分辨率一致的布局尺寸；整体缩放只靠 transform，避免与 width/height 叠加造成「缩放两次」 */
     let scale = Math.min(windowWidth / gameWidth, windowHeight / gameHeight, 1);
-    viewport.style.width = `${gameWidth * scale}px`;
-    viewport.style.height = `${gameHeight * scale}px`;
-    viewport.style.transform = `scale(${scale})`;
+    viewport.style.width = `${gameWidth}px`;
+    viewport.style.height = `${gameHeight}px`;
+    viewport.style.transformOrigin = 'center center';
+    viewport.style.position = 'absolute';
+    viewport.style.left = '50%';
+    viewport.style.top = '50%';
+    viewport.style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
 
 function initBootProcess() {

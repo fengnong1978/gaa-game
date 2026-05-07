@@ -158,18 +158,20 @@ Renderer.renderCharacterForStep = function (scene, step) {
     if (!charPath) return;
 
     const dlgBox = document.getElementById('dialogue-box');
+    const canvas = document.getElementById('game-canvas');
+    /** 与设计坐标一致的实际画布高度（若视口曾被错误缩小，可避免与固定 VIEW_H 混用把小图槽算爆） */
+    const viewH = (canvas && canvas.clientHeight > 0 ? canvas.clientHeight : LayoutHelpers.VIEW_H);
     /**
      * 立绘可用高度（小图）：
-     * 运行端对话层固定 bottom:24px，因此用逻辑坐标直接计算更稳定，
-     * 避免 getBoundingClientRect 在缩放/像素比下带来微偏差。
+     * 运行端对话层固定 bottom:24px；槽高必须与 viewH、对白框同属一套布局像素。
      */
-    let slotH = 520;
+    let slotH = Math.max(48, Math.min(viewH, 520));
     if (dlgBox) {
         const DIALOG_BOTTOM = 24;
         // 运行端对白框为固定三行高度，正常在约 136px；给出固定下限避免字体渲染差异导致槽高飘动
         const boxH = Math.max(136, dlgBox.offsetHeight || 136);
-        const raw = LayoutHelpers.VIEW_H - DIALOG_BOTTOM - boxH - 4;
-        slotH = Math.max(48, Math.min(LayoutHelpers.VIEW_H, raw));
+        const raw = viewH - DIALOG_BOTTOM - boxH - 4;
+        slotH = Math.max(48, Math.min(viewH, raw));
     }
 
     const mode = (step && step.charMode) || 'big'; // 'big' | 'small'

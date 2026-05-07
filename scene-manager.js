@@ -48,6 +48,7 @@ const SceneManager = {
             if (!scene || typeof scene !== 'object') return;
             if (!scene.id) scene.id = 'scene_' + Date.now();
             if (!scene.name) scene.name = scene.id;
+            if (scene.appearedValue == null) scene.appearedValue = 0;
             if (!Array.isArray(scene.steps)) {
                 // 旧版：scene.text + scene.options + scene.storyGraphic（仅作为兼容迁移）
                 const steps = [];
@@ -89,6 +90,7 @@ const SceneManager = {
             scene.steps = (scene.steps || []).filter(Boolean).map((s, idx) => ({
                 id: s.id || `${scene.id}_step_${idx}_${Date.now()}`,
                 type: s.type || 'dialogue',
+                appearedValue: s && s.appearedValue != null ? s.appearedValue : 0,
                 ...s
             }));
         });
@@ -103,6 +105,10 @@ const SceneManager = {
         this.currentSceneId = sceneId;
         const scene = this.getScene(sceneId);
         if (!scene) return;
+        scene.appearedValue = 1;
+        if (typeof GameState !== 'undefined' && GameState.markSceneAppeared) {
+            GameState.markSceneAppeared(scene.id);
+        }
         this.currentStepIndex = 0;
         if (startLabelSuffix) {
             const idx = (scene.steps || []).findIndex(s => s && s.labelSuffix === startLabelSuffix);
@@ -192,6 +198,10 @@ const SceneManager = {
         const scene = this.getScene(this.currentSceneId);
         const step = this.getCurrentStep();
         if (!scene || !step) return;
+        step.appearedValue = 1;
+        if (typeof GameState !== 'undefined' && GameState.markStepAppeared) {
+            GameState.markStepAppeared(step.id);
+        }
 
         const t = step.type || 'dialogue';
         if (t === 'choice' || t === 'random') {
@@ -344,6 +354,21 @@ const SceneManager = {
         }
         if (cond.type === 'relation') {
             const cur = typeof GameState !== 'undefined' && GameState.getRelationAffection ? GameState.getRelationAffection(cond.from, cond.to) : undefined;
+            return this._cmp(cur, cond.op, cond.value);
+        }
+        if (cond.type === 'appearance') {
+            const targetType = cond.targetType === 'scene' ? 'scene' : 'step';
+            const targetId = cond.targetId || '';
+            if (!targetId) return false;
+            let cur = 0;
+            if (typeof GameState !== 'undefined') {
+                if (targetType === 'scene') cur = Number(GameState.sceneAppearances && GameState.sceneAppearances[targetId]) ? 1 : 0;
+                else cur = Number(GameState.stepAppearances && GameState.stepAppearances[targetId]) ? 1 : 0;
+                if (!cur && GameState.get) {
+                    const key = targetType === 'scene' ? `scene_seen_${targetId}` : `step_seen_${targetId}`;
+                    cur = Number(GameState.get(key)) ? 1 : 0;
+                }
+            }
             return this._cmp(cur, cond.op, cond.value);
         }
         return true;
