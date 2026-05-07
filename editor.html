@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>StoryEngine - 可视化编辑器</title>
+    <link rel="stylesheet" href="editor.css">
+</head>
+<body style="margin: 0; background: #1e1e1e; color: #ccc; font-family: 'Microsoft YaHei', sans-serif; overflow: hidden;">
+    <div id="editor-container">
+        <div id="toolbar">
+            <div class="tool-group">
+                <input type="file" id="load-project" accept=".json" style="display:none">
+                <button id="btn-new-project">🆕 新建项目</button>
+                <button id="btn-load">📂 打开项目</button>
+                <button id="btn-save">💾 导出项目</button>
+                <button id="btn-bind-project-root" type="button" title="将上传资源写入项目内 assets 文件夹，几乎不占浏览器存储">📁 绑定项目目录</button>
+                <button id="btn-debug-run">🧪 调试试玩</button>
+            </div>
+            <div class="tool-group">
+                <button id="tab-story" class="tab active">📖 剧情编辑</button>
+                <button id="tab-cast" class="tab">👤 人物预设</button>
+                <button id="tab-assets" class="tab">📦 资源库</button>
+                <span id="current-project-name" style="margin-left:20px">未加载项目</span>
+            </div>
+        </div>
+
+        <div id="main-layout">
+            <div id="view-story" class="editor-view">
+                <div id="scene-list-panel">
+                    <div class="panel-header">
+                        <h3 style="margin:0">场景列表</h3>
+                        <button id="btn-toggle-scene-panel" type="button">收起</button>
+                        <button id="btn-add-scene">+ 新增</button>
+                    </div>
+                    <div id="scene-list"></div>
+                </div>
+                <div id="property-panel">
+                    <div class="panel-header"><h3 style="margin:0">场景属性编辑器</h3></div>
+                    <div id="editor-content">
+                        <p class="empty-msg">请在左侧选择一个场景进行编辑</p>
+                        <div id="editor-form" style="display:none">
+                            <div id="story-editor-split">
+                                <div id="story-form-column">
+                            <div class="form-section">
+                                <h4 style="margin-top:0">基础设定</h4>
+                                <div class="form-item">
+                                    <label>场景名称:</label>
+                                    <input type="text" id="edit-name">
+                                </div>
+                                <div class="form-item">
+                                    <label>场景 ID (系统锚点):</label>
+                                    <input type="text" id="edit-id" readonly style="background: #252526; color: #666;">
+                                </div>
+                                <div class="form-item hint-legacy" id="legacy-char-row" style="display:none">
+                                    <label>旧版单图立绘（仅兼容老项目）:</label>
+                                    <select id="edit-char-url-legacy"></select>
+                                </div>
+                                <div class="form-item" style="display:none">
+                                    <label>对白文本:</label>
+                                    <textarea id="edit-text"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="form-section" id="steps-section">
+                                <h4 style="margin-top:0;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                                    <span>步骤列表</span>
+                                    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                                        <button type="button" id="btn-open-steps-page">单独一页编辑步骤</button>
+                                    </div>
+                                </h4>
+                                <div class="step-search-row">
+                                    <select id="label-search-scope">
+                                        <option value="global" selected>全剧本</option>
+                                        <option value="scene">本场景</option>
+                                    </select>
+                                    <select id="label-quick-pick">
+                                        <option value="">标签下拉菜单</option>
+                                    </select>
+                                    <input type="text" id="label-search-input" placeholder="搜索标签关键字">
+                                    <button type="button" id="btn-label-search">搜索</button>
+                                </div>
+                                <div id="steps-list"></div>
+                                <datalist id="global-labels"></datalist>
+                            </div>
+                            <div class="form-section">
+                                <h4 style="display:flex;align-items:center;gap:10px;justify-content:space-between;">
+                                    <span>视觉资源</span>
+                                    <button type="button" id="btn-toggle-vd">背景和立绘画面预览</button>
+                                </h4>
+                                <div class="form-item">
+                                    <label>背景图:</label>
+                                    <div class="inline-picker-row">
+                                        <select id="edit-bg-url"></select>
+                                        <button type="button" id="btn-upload-bg-inline">立即上传</button>
+                                    </div>
+                                </div>
+                                <div class="form-item">
+                                    <label>背景音乐:</label>
+                                    <div class="inline-picker-row">
+                                        <select id="edit-music-url"></select>
+                                        <button type="button" id="btn-upload-music-inline">立即上传</button>
+                                        <button type="button" class="mini-btn" id="btn-clear-scene-bgm" title="本场景不播放任何背景音乐">不用 BGM</button>
+                                        <label style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                                            <input type="checkbox" id="edit-music-loop">
+                                            循环
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-item">
+                                    <label>背景平移 X / Y（等比缩放后平移）:</label>
+                                    <div class="input-group">
+                                        <input type="number" id="edit-bg-fit-pan-x">
+                                        <input type="number" id="edit-bg-fit-pan-y">
+                                    </div>
+                                </div>
+                                <div class="form-item">
+                                    <label>背景缩放倍率（在「适应屏幕」基础上，保持比例）:</label>
+                                    <input type="number" step="0.05" min="0.1" id="edit-bg-fit-zoom">
+                                </div>
+                            </div>
+                            <div class="form-section">
+                                <button id="btn-delete-scene" style="color: #ff5f5f; border-color: #ff5f5f;">❌ 删除场景</button>
+                            </div>
+                                </div>
+                                <div id="visual-director-column">
+                                    <div class="vd-header">
+                                        <strong>画面预览</strong>
+                                        <span class="vd-hint">拖拽平移 · 滚轮缩放 · 保持比例不变形</span>
+                                    </div>
+                                    <div class="vd-mode-row">
+                                        <label><input type="radio" name="vd-mode" value="bg" checked> 调背景</label>
+                                        <label><input type="radio" name="vd-mode" value="char"> 调立绘</label>
+                                    </div>
+                                    <div id="vd-viewport-wrap">
+                                        <div id="vd-viewport">
+                                            <div id="vd-layer-bg"></div>
+                                            <div id="vd-layer-char"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="view-cast" class="editor-view view-cast-root" style="display:none">
+                <div id="cast-panel">
+                    <div class="cast-intro">
+                        <p>为每个<strong>人物</strong>建立档案。每种情绪旁点<strong>「上传并绑定」</strong>即可一步完成注册 + 绑定（不必先去资源库）。若需改图，可再上传覆盖同名资源，或从下拉列表选择已存在的立绘。</p>
+                        <p>双人亲吻等<strong>剧情大图</strong>请在<strong>场景编辑</strong>里用「选择图片并嵌入本场景」直接上传，无需进资源库；与单角色立绘分开。</p>
+                        <button type="button" id="btn-edit-unified-attrs">编辑统一属性</button>
+                        <button type="button" id="btn-add-cast">+ 新建人物</button>
+                    </div>
+                    <div id="cast-list"></div>
+                </div>
+            </div>
+            <div id="view-assets" class="editor-view view-assets-root" style="display:none">
+                <div id="asset-manager-panel"></div>
+            </div>
+            <div id="view-steps" class="editor-view view-steps-root" style="display:none" aria-label="步骤全页编辑">
+                <div class="steps-page-wrap">
+                    <div class="steps-page-toolbar">
+                        <button type="button" id="btn-close-steps-page">返回</button>
+                        <div class="steps-page-title-block">
+                            <h2 class="steps-page-heading">步骤列表</h2>
+                            <p id="steps-page-subtitle" class="steps-page-sub"></p>
+                        </div>
+                        <label class="steps-page-scene-label">当前场景
+                            <select id="steps-page-scene-select"></select>
+                        </label>
+                    </div>
+                    <div class="step-search-row steps-page-search">
+                        <select id="label-search-scope-page">
+                            <option value="global" selected>全剧本</option>
+                            <option value="scene">本场景</option>
+                        </select>
+                        <select id="label-quick-pick-page">
+                            <option value="">标签下拉菜单</option>
+                        </select>
+                        <input type="text" id="label-search-input-page" placeholder="搜索标签关键字">
+                        <button type="button" id="btn-label-search-page">搜索</button>
+                    </div>
+                    <div id="steps-list-page"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="effects.js"></script>
+    <script src="storage-manager.js"></script>
+    <script src="directory-memory.js"></script>
+    <script src="asset-manager.js"></script>
+    <script src="layout-helpers.js"></script>
+    <script src="editor.js"></script>
+
+    <!-- 统一属性编辑弹窗（动态注入内容） -->
+    <div id="modal-mask" class="modal-mask">
+        <div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <strong id="modal-title">编辑统一属性</strong>
+                <button type="button" id="modal-close">关闭</button>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "gaa-game",
+  "version": "1.0.0",
+  "main": "electron-entry.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^22.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}

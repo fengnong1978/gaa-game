@@ -1,0 +1,537 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #1a1a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: "Microsoft YaHei", "SimSun", sans-serif;
+}
+
+/* 启动界面 */
+#boot-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #2c3e50;
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+}
+
+#boot-window {
+    background: #34495e;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 2px solid #ecf0f1;
+}
+
+#boot-window h2 { margin-top: 0; }
+
+#btn-select-file {
+    background: #e67e22;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    font-size: 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+    margin-top: 20px;
+}
+
+#btn-select-file:hover { background: #d35400; }
+
+/* 游戏视口 */
+#game-viewport {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    overflow: hidden;
+    background-color: #000;
+}
+
+#game-canvas {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+#layer-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    overflow: hidden;
+}
+
+#layer-bg img {
+    position: absolute;
+    image-rendering: auto;
+}
+
+#layer-char {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    pointer-events: none;
+}
+
+/* 立绘尺寸由 renderer 内联 style 控制（大图/小图槽位） */
+#layer-char img {
+    object-fit: contain;
+}
+
+/* 剧情插画 / CG（全屏等比，在对话框之下、选项层之下） */
+#layer-story {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* 步骤 CG：直接挂在 #layer-story 下的 img/video 等比完整显示（不裁切） */
+#layer-story > img,
+#layer-story > video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+    object-position: center;
+}
+
+/* 旧版场景剧情图：包在 div 里，仍用 contain 完整显示 */
+#layer-story > div {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#layer-story > div img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+/* 环境粒子 / 滤镜叠加（在 CG 之上） */
+#layer-fx {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* 全屏闪白、震动、剧情冲击（可盖住对话框） */
+#layer-screen-fx {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    pointer-events: none;
+}
+
+@keyframes fx-heartbeat {
+    0% {
+        transform: scale(1);
+    }
+    18% {
+        transform: scale(1.06);
+    }
+    32% {
+        transform: scale(0.98);
+    }
+    48% {
+        transform: scale(1.03);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.fx-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.fx-starry-night .fx-star {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    animation: fx-twinkle 3s ease-in-out infinite;
+    opacity: 0.35;
+}
+
+@keyframes fx-twinkle {
+    0%,
+    100% {
+        opacity: 0.15;
+        transform: scale(0.7);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.15);
+    }
+}
+
+.fx-bokeh-dot {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 220, 140, 0.55), rgba(255, 200, 80, 0.08) 60%, transparent 72%);
+    filter: blur(2px);
+    opacity: 0.55;
+    animation: fx-bokeh-float 8s ease-in-out infinite;
+}
+
+@keyframes fx-bokeh-float {
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.45;
+    }
+    50% {
+        transform: translate(-10px, 12px) scale(1.08);
+        opacity: 0.65;
+    }
+}
+
+.fx-soft-glow {
+    box-shadow: inset 0 0 120px rgba(255, 255, 255, 0.35);
+    background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.18), transparent 55%);
+}
+
+.fx-cold-blue {
+    background: linear-gradient(
+        180deg,
+        rgba(120, 170, 255, 0.22),
+        rgba(40, 70, 140, 0.28) 55%,
+        rgba(20, 40, 90, 0.35)
+    );
+    mix-blend-mode: soft-light;
+}
+
+.fx-heart-bubbles .fx-heart::before {
+    content: "♥";
+    color: rgba(255, 160, 200, 0.55);
+    text-shadow: 0 0 10px rgba(255, 120, 180, 0.45);
+}
+
+.fx-heart-bubbles .fx-heart {
+    position: absolute;
+    bottom: -8%;
+    animation: fx-heart-rise 9s linear infinite;
+}
+
+@keyframes fx-heart-rise {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.85;
+    }
+    100% {
+        transform: translateY(-120%) translateX(12px) scale(1.2);
+        opacity: 0;
+    }
+}
+
+.fx-rain-canvas {
+    opacity: 0.65;
+}
+
+.fx-particle-fall {
+    position: absolute;
+    inset: 0;
+}
+
+.fx-particle-fall .fx-particle-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    will-change: transform, opacity;
+    opacity: 0.65;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.fx-glow-pulse {
+    position: absolute;
+    inset: -12%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.55), transparent 62%);
+    animation: fx-glow-ring 1s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes fx-glow-ring {
+    0% {
+        transform: scale(0.2);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.35);
+        opacity: 0;
+    }
+}
+
+.fx-flash-white {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0.95;
+    animation: fx-flash-out 0.18s ease-out forwards;
+}
+
+.fx-flash-dark {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    animation: fx-flash-out 0.12s ease-out forwards;
+}
+
+@keyframes fx-flash-out {
+    to {
+        opacity: 0;
+    }
+}
+
+.fx-vignette-red {
+    position: absolute;
+    inset: -6%;
+    box-shadow: inset 0 0 140px rgba(180, 0, 0, 0.55);
+    background: radial-gradient(circle at 50% 50%, transparent 45%, rgba(120, 0, 0, 0.35) 100%);
+}
+
+.fx-edge-fog {
+    position: absolute;
+    inset: -4%;
+    backdrop-filter: blur(10px);
+    mask-image: radial-gradient(circle at 50% 50%, transparent 48%, rgba(0, 0, 0, 0.85) 100%);
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 48%, rgba(0, 0, 0, 0.85) 100%);
+}
+
+.fx-shatter {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+            100deg,
+            rgba(0, 0, 0, 0) 48%,
+            rgba(255, 255, 255, 0.55) 49.5%,
+            rgba(0, 0, 0, 0.35) 51%,
+            rgba(0, 0, 0, 0) 54%
+        ),
+        linear-gradient(
+            80deg,
+            rgba(20, 20, 20, 0.9) 47%,
+            rgba(255, 255, 255, 0.25) 50%,
+            rgba(10, 10, 10, 0.92) 53%
+        );
+    animation: fx-shatter-move 0.85s ease-out forwards;
+    mix-blend-mode: screen;
+    opacity: 0.95;
+}
+
+@keyframes fx-shatter-move {
+    0% {
+        transform: scale(1) skewX(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.06) skewX(4deg) translate(18px, 10px);
+        opacity: 0;
+    }
+}
+
+.fx-frost-frame {
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 6px rgba(200, 235, 255, 0.55), inset 0 0 80px rgba(160, 220, 255, 0.35);
+    background: radial-gradient(circle at 50% 100%, rgba(200, 240, 255, 0.18), transparent 55%);
+    animation: fx-frost-in 0.45s ease-out forwards;
+}
+
+.fx-frost-out {
+    opacity: 0;
+    transition: opacity 0.85s ease;
+}
+
+@keyframes fx-frost-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+#game-canvas.fx-red-tint {
+    filter: saturate(1.45) contrast(1.08) sepia(0.35);
+}
+
+#game-canvas.fx-grayscale {
+    filter: grayscale(1) brightness(0.92) contrast(1.05);
+}
+
+#game-canvas.fx-ice-blue {
+    filter: saturate(0.75) hue-rotate(-12deg) brightness(0.96) contrast(1.08);
+}
+
+#game-canvas.fx-high-contrast {
+    filter: contrast(1.55) brightness(1.12);
+}
+
+#layer-dialogue {
+    position: absolute;
+    bottom: 24px;
+    left: 0;
+    width: 100%;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+
+/* 姓名在对话框外上沿左上方；对话框本体可点击翻页 */
+#dialogue-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 1100px;
+    max-width: calc(100% - 48px);
+    pointer-events: none;
+}
+
+#dialogue-box {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    border: 3px solid #fff;
+    border-radius: 15px;
+    padding: 12px 18px 12px;
+    box-sizing: border-box;
+    color: white;
+    position: relative;
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* CG 覆盖但对话框不消失：降低背景透明度（文字仍保持高对比） */
+#dialogue-box.dialogue-dim {
+    background: rgba(0, 0, 0, 0.65);
+}
+
+#char-name {
+    font-size: 26px;
+    font-weight: bold;
+    color: #ffd700;
+    margin: 0 0 6px 4px;
+    padding: 0;
+    line-height: 1.2;
+    width: fit-content;
+    max-width: 100%;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+#text-area {
+    /* 固定为约三行正文高度，避免对话框盖住过多立绘 */
+    min-height: 0;
+    height: calc(22px * 1.6 * 3);
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    overflow: hidden;
+}
+
+#text-content {
+    font-size: 22px;
+    line-height: 1.6;
+    word-wrap: break-word;
+    white-space: pre-line;
+}
+
+/* 页码：框内右上绝对定位，不占底部整行；多页时由脚本移除 hidden */
+#page-indicator {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    z-index: 2;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1.2;
+    color: rgba(200, 200, 200, 0.95);
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+
+#page-indicator[hidden] {
+    display: none !important;
+}
+
+#layer-options {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+#options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 500px;
+}
+
+.option-btn {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border: 2px solid #fff;
+    padding: 15px 25px;
+    font-size: 20px;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: 0.3s;
+    text-align: center;
+}
+
+.option-btn:hover {
+    background: #fff;
+    color: #000;
+    transform: scale(1.05);
+}

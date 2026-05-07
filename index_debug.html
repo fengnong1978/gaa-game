@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoryEngine - 调试试玩</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* 调试页小提示，不影响画面 */
+        #debug-badge {
+            position: fixed;
+            left: 12px;
+            top: 12px;
+            z-index: 9999;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body style="margin: 0; background-color: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;">
+    <div id="debug-badge">🧪 调试试玩（后续这里会显示属性面板）</div>
+
+    <!-- 启动加载界面 -->
+    <div id="boot-screen">
+        <div id="boot-window">
+            <h2>📖 StoryEngine 启动</h2>
+            <p>请选择您的剧情项目文件 (.json) 以开始游戏</p>
+            <input type="file" id="project-upload" accept=".json" style="display: none;">
+            <button id="btn-select-file">选择项目文件</button>
+        </div>
+    </div>
+
+    <div id="game-viewport" style="display: none;">
+        <div id="game-canvas">
+            <div id="layer-bg"></div>
+            <div id="layer-char"></div>
+            <div id="layer-story"></div>
+            <div id="layer-fx"></div>
+            <div id="layer-screen-fx"></div>
+            <div id="layer-options">
+                <div id="options-container"></div>
+            </div>
+            <div id="layer-dialogue">
+                <div id="dialogue-column">
+                    <div id="char-name"></div>
+                    <div id="dialogue-box">
+                        <div id="page-indicator" hidden></div>
+                        <div id="text-area">
+                            <div id="text-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+    <script src="state.js"></script>
+    <script src="debug-runtime.js"></script>
+    <script src="scene-manager.js"></script>
+    <script src="ui-manager.js"></script>
+    <script src="storage-manager.js"></script>
+    <script src="asset-manager.js"></script>
+    <script src="layout-helpers.js"></script>
+    <script src="effects.js"></script>
+    <script src="renderer.js"></script>
+</body>
+</html>
